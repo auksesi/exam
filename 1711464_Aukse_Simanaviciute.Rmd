@@ -1,0 +1,180 @@
+---
+title: "Egzaminas" #nekeisti
+author: "Auksė Simanavičiūtė, 1711464" 
+institute: "Vilniaus Universitetas (EVAF)" #nekeisti 
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M')`"#nekeisti
+output: #nekeisti
+  html_document: #nekeisti
+    number_sections: TRUE #nekeisti
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, error = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Prieš pradedant
+* Ant desktopo sukurkite direktoriją "exam", į ją išsaugokite šį dokumentą pakeisdami jo pavadinimą į "StudNr_Vardas_Pavarde.Rmd" (nenaudokite lt rašmenų) bei atitinkamai pakeisdami viršuje esančius laukelius: "author: ..."
+* Sumegzkite iškart šį dokumentą į .html failą ir įsitikinkite, jog viskas veikia gerai, tik tada pradėkite spręsti uždavinius.
+
+
+# Pasiruošimas
+Šioje kodo dalyje surašykite visus paskesnėse dalyse naudojamus R paketus. Kodas turi patikrinti, ar paketas yra instaliuotas, jeigu ne, instaliuoti bei užloadinti. Jeigu darbo eigoje prireikia naujų paketų, nepamirkite čia juos įrašyti.
+
+```{r, echo=TRUE, message=FALSE}
+if(!require(eurostat)) install.packages("eurostat"); require(eurostat)
+if(!require(dplyr)) install.packages("dplyr"); require(dplyr)
+if(!require(tidyverse)) install.packages("tidyverse"); require(tidyverse)
+if(!require(ggplot2)) install.packages("ggplot2"); require(ggplot2)
+```
+
+
+# Istorija
+Šiuo metu Jūs darbuojatės NVO "Stop skurdas". Koks tai "influenceris" patrolino visuomenę (galimai apmokėtas privačių pensijų fondų), jog Sodroje kaupti pensijai neapsimoka ir kaip pvz. pateikė savo mamulę, gaunančią vos 221 eurą per mėnesį. 
+https://i1.wp.com/lithuanian-economy.net/wp-content/uploads/2019/06/Saugirdas.jpg
+
+
+Komentaruose pasipylė aibė pasisakymų, jog jeigu neturėtume "pašalpinių" armijos ir jiems skirtus pinigus skirtume pensininkams, tai pensininkai gyventų "oriau".  
+
+Jums tokie argumentai sukelia daug abejonių. Kadangi Jūs kažkaip išgyvenote  duomenų analizės įvadą, Jūs nusprendžiate pateikti tam tikrus faktus viešai diskusijai. Šių faktų generavimas ir yra Jūsų egzamino užduotis.
+
+
+## Duomenų importas
+Importuokite duomenis iš eurostat apie tai, kiek Lietuva (visas valdžios sektorius) ir ES-28 skiria % BVP socialinei paramai. Kadangi datasetas yra didelis, rekomenduoju parsisiųsti tik reikalingus duomenis. 
+
+[Pagalba: "gov_10a_exp", reikalingos išlaidų rūšys "Social protection", "Old age", "Sickness and disability"]
+
+```{r}
+
+gov_10a_exp <- get_eurostat("gov_10a_exp",stringsAsFactors = FALSE)
+gov_10a_exp <- as.data.frame(gov_10a_exp)
+dt <- gov_10a_exp %>% filter(
+        geo %in% c("EU28", "LT"),
+        cofog99 %in% c("GF1002","GF1001", "GF10"), 
+        na_item == "TE",
+        sector == "S1312", 
+        unit== "PC_GDP")
+        
+                         
+```
+
+
+
+## Duomenų apdorojimas
+Kadangi "pašalpiniai" gauna įvairią socialinę pagalbą (pvz., lengvatas būsto šildymui, vaikų maitinimui mokykloje ir t.t.), šioje dalyje pabandysime iš visų išlaidų socialinei apsaugai atimti pensijas ir ligos pašalpas, o likutį pavadinsime `pasalpa`. 
+
+Sukurkite nauja dataframe objektą, kuriame būtų LT ir EU28 laiko eilutės (nuo 2004 metų) su 2 išlaidų sritimis: pasalpa (kurią apskaičiavote) bei išlaidomis pensijoms.
+
+```{r}
+
+df_OLD <- dt %>% filter(
+        cofog99 == "GF1002",
+        time >= "2004-01-01"
+        
+)
+df_OLD<- df_OLD %>% select(-c(1,2,3,4,5))
+
+```
+
+## Nubraižykite grafiką
+
+* Nubraižykite prieš tai žingsnyje apdorotus duomenis linijine diagrama su taškais (shape) 
+* Spalvą priskirkite geo
+* Taškų (shape) formą priskirkite išlaidų rūšims. 
+* Tikėtina Jums reikės googlinti arba ieškoti stackoverflow, kaip pranešti ggplot2, kaip yra sugrupuoti duomenys (jeigu norite jog visos 4 linijos būtų viename grafike), alternatyviai galite skaidyti grafiką į dvi dalis, pagal išlaidų rūšis (tada skaidymas turi vykti naudojant vieną iš ggplot2 komandų)
+* Nepamirškite tvarkingo apipavidalinimo (ašys, antraštės ir t.t.)
+
+```{r}
+ggplot(dt, aes(x= time,y= value, col=geo))+
+        geom_line()+
+        geom_point(aes(y=GF1002,shape="GF1002"))+
+        geom_point(aes(y=GF1001, shape="GF1001"))+
+        geom_point(aes(y= GF10, shape="GF10"))
+```
+
+
+
+## Apskaičiuokite
+
+Taip pat, Jūs nusprendėte pateikti lentelę, kurioje būtų matyti kiek % BVP pensijoms ir pašalpoms skyrė EU28 ir Lietuva 2017m.
+Visgi vien tik procentinės išraiškos nėra labai informatyvios, tad Jūs nusprendžiate pateikite lentelę (dataframe pageidautiną perleistą į lentelių formavimo komandą) susidedančią iš 2 eilučių (cofog99) ir 4 stulpelių:
+
+* ES28 išlaidos % BVP
+* LT išlaidos % BVP
+* skirtumas procentiniais punktais (primenu, 1.9%-1.5%=0.4 proc.punkto)
+* trečio stulpelio reikšmes sudauginkite su Lietuvos 2017m BVP (= 41857 mln eur), nes norite žinoti, kiek mln eurų reiktų skirti šioms sritims, tam kad pasiektume ES vidurkį
+* PERSPĖJIMAS: kai skaičiuosite reikalingas lėšas, pasitikrinkite, ar teisingai skaičiuojate  kai sudauginate su proc. punktais! :)
+
+```{r}
+# Kodas
+# Kodas
+# Kodas
+```
+
+
+## Grafikas 2 
+
+Pastebėję, jog socialinės išlaidos pakankamai skiriasi tarp LT is ES28, Jūs nusprendėte nubraižyti stulpelinį grafiką, kuriame būtų pavaizduotos visų ES (t.y. 28!) šalių išlaidos socialiniai sričiai bendrai ("Social protection") % nuo BVP. Naudokite 2017 metų rodiklius. Tam jog matytųsi ES28 vidurkis nubraižykite jį į grafiką kaip horizontalią liniją.
+
+Jums gali reikėti atsisiųsti reikiamą Eurostat dataset iš naujo. 
+Stulpeliai turėtų būti surikiuoti didėjančia tvarka, jų viršuje pateikiamos  stulpelių reikšmės.
+
+Grafikas turėtų atrodyti daugmaž taip: https://i2.wp.com/lithuanian-economy.net/wp-content/uploads/2019/03/private_expenditue_MTEP_2017.jpeg?resize=768%2C427
+
+
+```{r}
+gov_10a_exp <- get_eurostat("gov_10a_exp",stringsAsFactors = FALSE)
+gov_10a_exp <- as.data.frame(gov_10a_exp)
+sp <- gov_10a_exp %>% filter(
+        cofog99 == "GF10", 
+        geo %in% c("BE","BG","CZ","DK","DE","EE","IE",
+                   "EL","ES","FR","HR","IT","CY","LV",
+                   "LT","LU","HU","MT","NL","AT","PL",
+                   "PT","RO","SI","SK","FI","SE","UK"),
+        sector == "S1314",
+        unit == "PC_GDP",
+        time == "2017-01-01", 
+        na_item == "TE"
+)
+
+ggplot(sp, aes(x = reorder(geo,values), y=values))+
+        geom_bar(stat = "Identity", fill = "steelblue")+
+        geom_text(aes(label=values), vjust= -0.5, size=3.5)+
+        labs(title= "Bendros ES šalių išlaidos socialiniai sričiai 2017m",
+             subtitle= "EUROSTAT:gov_10a_exp",
+             x= "Salys",
+             y= "% nuo BVP")
+```
+
+
+## Vertinimas
+Pateikite trumpą situacijos vertinimą remiantis iki šiol atlikta duomenų analizę. Pateikite savo įžvalgas, kaip būtų galima spręsti žemų pensijų  problemas ateityje. Drąsiai galite remtis Europos Komisijos ataskaita bei rekomendacijomis Lietuvai. 
+
+* Rekomendacija: https://ec.europa.eu/info/sites/info/files/file_import/2019-european-semester-country-specific-recommendation-commission-recommendation-lithuania_en.pdf
+* Ataskaita : https://ec.europa.eu/info/sites/info/files/file_import/2019-european-semester-country-report-lithuania_lt.pdf
+
+```{r, eval=TRUE}
+#Parašykite apie 200 (+- 20) žodžių. 
+#Rašykite VIETOJ Lore ipsum... teksto t.y. tarpe tarp abiejų kabučių.
+#Jeigu norite žinoti kiek žodžių parašėte, galite runninti tik šit snippet' jo kampytyje nuspaudę ant žalio trikampio rodančio į dešinę
+
+str1 <- 
+"
+Lietuvos pensijų sistema nėra veiksminga apsaugant pagyvenusius žmones nuo skurdo ir socialinės atskirties. Trumpalaikei perpektyvoje tai šiek tiek sumažins skurdo lygi tarp pensijinio amžiaus žmonių, tačiau žvelgiant į ateitį, nauda gali būti labai nedidelė arba išvis jos nelikti. Valstybė, leisdama pensijų fondų reklamą, elgiasi neetiškai ir neatsakingai, juolab
+kad pati neprisiima atsakomybės pensijų fondų įmonių nemokumo atveju. Būtina ne reklamuoti kaupiamąsias pensijas, o visapusiškai aiškinti galimas rizikas, pateikiant kraštutinumus pensijų fondo veiklos rezultatų. Tik tokia valstybės pozicija bus teisinga. Kaupiamos pensijos dydžio negarantuoja nei valstybė, nei privatūs pensijų fondai. Kaupiama pensija nėra apsaugota. Todėl nesekmingų investicijų metu visos pasekmės atitenka pensijų sistemos reformos dalyviams, kurie kaupia lėšas. Reformos dalyviui nesuteiktos garantijos, kad sumažėjusią papildomos senatvės pensijos dalį kompensuos išmokos, gaunamos iš pensijų fondų, todėl yra rizika, kad asmuo, kaupdamas lėšas antros pakopos pensijų fonduose, negaus didesnės senatvės pensijos. Tad manau būtina stiprinti teisinius pensijų fondo lėšų saugiklius. Čia svarbi vadinamoji “ankstyvojo signalo” sistema, kuri padėtų laiku susiorientuoti situacijoje ir imtis atitinkamų apsaugos priemonių. Manau, kad valstybė galėtų prisiimti bent dalinę atsakomybę. Šiuo atveju įstatymų leidėjas turėtų gerai pamąstyti dėlgalimybės įtvirtinti privalomąjį antrosios pakopos kaupimą. Tokiu būdu prievolė kaupti pensiją būtų atsverta atitinkama valstybės pareiga. 
+
+
+"
+sapply(strsplit(str1," "),length)
+```
+
+
+
+
+
+
+
+## Darbo užbaigimo ir ship'inimo instrukcija:
+* Sumegzkite šį dokumentą į `html`, jeigu Jūsų kode yra klaidų ir sumezgimas neveikia, išsaugokite šį failą tiesiog "File -> save"
+* Savo Github paskyroje sukurkite repo "exam"
+* Pushinkit lokalią repo į Github. Direktorijoje turi būti 2 failai: "StudNr_Vardas_Pavardė.Rmd" ir "StudNr_Vardas_Pavardė.html"
+* Įsitikinkite jog Githube guli repo kopija ir repo url įrašykite į google docs J stulpelį: https://docs.google.com/spreadsheets/d/1H_ts3wTKYZ4rocmFseR2YJtZHfhJ543MUWsTTa7x5Kc/edit?usp=sharing
